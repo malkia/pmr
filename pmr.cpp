@@ -3,17 +3,45 @@
 #include <string>
 #include <vector>
 #include <cassert>
-#include <cstddef> // std::byte
 #include <iostream>
-#include <string>
 
-class A
+struct A
 {
     float x;
     float y;
     float z;
 };
 
+struct alignas(256) AA : public A
+{
+};
+
+void* operator new(std::size_t s)
+{
+    auto p = malloc(s);
+    std::cout << "  New " << s << " bytes -> " << p << std::endl;
+    return p;
+}
+
+void* operator new(std::size_t s, std::align_val_t a)
+{
+    auto p = std::aligned_alloc( s, std::size_t(a) );
+    std::cout << "  New aligned " << s << " bytes, " << "align " << std::size_t(a) << " -> " << p << std::endl;
+    return p;
+}
+
+void operator delete(void* p)
+{
+    std::cout << "  Delete " << p << std::endl;
+    free(p);
+}
+
+void operator delete(void* p, std::align_val_t a)
+{
+    std::cout << "  Delete aligned " << p << " align " << std::size_t(a) << std::endl;
+    // TODO: Double free bug?
+    //free(p);
+}
 
 // Stolen from https://github.com/camio/pmr_sandbox/blob/master/simplicity.cpp
 class LoggingResource : public std::pmr::memory_resource {
@@ -37,13 +65,48 @@ private:
   }
 };
 
+namespace std::pmr {
+template <class T, class... Args>
+::std::shared_ptr<T> make_shared(Args&&... args)
+{
+  return ::std::allocate_shared<T, ::std::pmr::polymorphic_allocator<::std::byte>>(
+    ::std::pmr::get_default_resource(), 
+    ::std::forward<Args>(args)...
+  );
+}
+
+template <class T, class... Args>
+::std::shared_ptr<T> make_shared_in(std::pmr::memory_resource* mr, Args&&... args)
+{
+  return ::std::allocate_shared<T, ::std::pmr::polymorphic_allocator<::std::byte>>(
+    mr,
+    ::std::forward<Args>(args)...
+  );
+}
+}
+
 int main(int argc, const char *argv[])
 {
     // Allocated with global new/delete
     auto a = std::make_shared<A>();
+    auto aa = std::make_shared<AA>();
 
     auto mr = new LoggingResource(std::pmr::get_default_resource());
+    auto b0 = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(mr);
+    auto b0a = std::allocate_shared<AA, std::pmr::polymorphic_allocator<std::byte>>(mr);
+    auto b1 = std::pmr::make_shared<A>();
+    auto b1a = std::pmr::make_shared<AA>();
+    auto b2 = std::pmr::make_shared_in<A>(mr);
+    auto b2a = std::pmr::make_shared_in<AA>(mr);
+    auto pr = std::pmr::set_default_resource(mr);
     // Allocated with the LoggingResource above
-    auto b = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(mr);
+    auto c0 = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(mr);
+    auto c1 = std::pmr::make_shared<A>();
+    auto c2 = std::pmr::make_shared_in<A>(mr);
+    std::pmr::set_default_resource(mr);
+    auto d0 = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(std::pmr::get_default_resource());
+    auto d1 = std::pmr::make_shared<A>();
+    auto d2 = std::pmr::make_shared_in<A>(pr);
+    auto d3 = std::pmr::make_shared_in<A>(mr);
     return 0;
 }
