@@ -128,7 +128,7 @@ template <class T, class... Args>
 }
 
 template <class T, class... Args>
-::std::shared_ptr<T> make_shared_in(std::pmr::memory_resource* mr, Args&&... args)
+::std::shared_ptr<T> make_shared_from(std::pmr::memory_resource* mr, Args&&... args)
 {
   return ::std::allocate_shared<T, ::std::pmr::polymorphic_allocator<::std::byte>>(
     mr,
@@ -156,18 +156,18 @@ int main(int argc, const char *argv[])
     auto b0a = std::allocate_shared<AA, std::pmr::polymorphic_allocator<std::byte>>(mr);
     auto b1 = std::pmr::make_shared<A>();
     auto b1a = std::pmr::make_shared<AA>();
-    auto b2 = std::pmr::make_shared_in<A>(mr);
-    auto b2a = std::pmr::make_shared_in<AA>(mr);
+    auto b2 = std::pmr::make_shared_from<A>(mr);
+    auto b2a = std::pmr::make_shared_from<AA>(mr);
     auto pr = std::pmr::set_default_resource(mr);
     // Allocated with the LoggingResource above
     auto c0 = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(mr);
     auto c1 = std::pmr::make_shared<A>();
-    auto c2 = std::pmr::make_shared_in<A>(mr);
+    auto c2 = std::pmr::make_shared_from<A>(mr);
     std::pmr::set_default_resource(mr);
     auto d0 = std::allocate_shared<A, std::pmr::polymorphic_allocator<std::byte>>(std::pmr::get_default_resource());
     auto d1 = std::pmr::make_shared<A>();
-    auto d2 = std::pmr::make_shared_in<A>(pr);
-    auto d3 = std::pmr::make_shared_in<A>(mr);
+    auto d2 = std::pmr::make_shared_from<A>(pr);
+    auto d3 = std::pmr::make_shared_from<A>(mr);
 
 #ifdef _MSC_VER
 #ifdef _DEBUG
