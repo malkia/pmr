@@ -1,9 +1,17 @@
+#define _ENABLE_EXTENDED_ALIGNED_STORAGE 1
 #include <memory_resource>
 #include <memory>
 #include <string>
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <cstdlib>
+
+#ifdef _MSC_VER
+#ifdef _DEBUG
+#include <crtdbg.h>
+#endif
+#endif
 
 struct A
 {
@@ -12,21 +20,61 @@ struct A
     float z;
 };
 
-struct alignas(256) AA : public A
+struct alignas(__STDCPP_DEFAULT_NEW_ALIGNMENT__*2) AA : public A
 {
 };
 
-void* operator new(std::size_t s)
+void* operator new(std::size_t s) noexcept
 {
     auto p = malloc(s);
     std::cout << "  New " << s << " bytes -> " << p << std::endl;
     return p;
 }
 
-void* operator new(std::size_t s, std::align_val_t a)
+void* operator new(std::size_t s, const std::nothrow_t& tag) noexcept
 {
+    auto p = malloc(s);
+    std::cout << "  New(nothrow_t) " << s << " bytes -> " << p << std::endl;
+    return p;
+}
+
+void* operator new[](std::size_t s) noexcept
+{
+    auto p = malloc(s);
+    std::cout << "  New[] " << s << " bytes -> " << p << std::endl;
+    return p;
+}
+
+void* operator new(std::size_t s, std::align_val_t a) noexcept
+{
+#ifdef _MSC_VER
+    auto p = _aligned_malloc( s, std::size_t(a) );
+#else
     auto p = std::aligned_alloc( s, std::size_t(a) );
+#endif
     std::cout << "  New aligned " << s << " bytes, " << "align " << std::size_t(a) << " -> " << p << std::endl;
+    return p;
+}
+
+void* operator new(std::size_t s, std::align_val_t a, const std::nothrow_t& tag) noexcept
+{
+#ifdef _MSC_VER
+    auto p = _aligned_malloc( s, std::size_t(a) );
+#else
+    auto p = std::aligned_alloc( s, std::size_t(a) );
+#endif
+    std::cout << "  New aligned (nothrow_t) " << s << " bytes, " << "align " << std::size_t(a) << " -> " << p << std::endl;
+    return p;
+}
+
+void* operator new[](std::size_t s, std::align_val_t a) noexcept
+{
+#ifdef _MSC_VER
+    auto p = _aligned_malloc( s, std::size_t(a) );
+#else
+    auto p = std::aligned_alloc( s, std::size_t(a) );
+#endif
+    std::cout << "  New[] aligned " << s << " bytes, " << "align " << std::size_t(a) << " -> " << p << std::endl;
     return p;
 }
 
@@ -39,8 +87,12 @@ void operator delete(void* p)
 void operator delete(void* p, std::align_val_t a)
 {
     std::cout << "  Delete aligned " << p << " align " << std::size_t(a) << std::endl;
+#ifdef _MSC_VER
+    _aligned_free( p );
+#else
     // TODO: Double free bug?
     //free(p);
+#endif
 }
 
 // Stolen from https://github.com/camio/pmr_sandbox/blob/master/simplicity.cpp
@@ -87,6 +139,14 @@ template <class T, class... Args>
 
 int main(int argc, const char *argv[])
 {
+#ifdef _MSC_VER
+#ifdef _DEBUG
+  _CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE );
+  _CrtSetReportFile( _CRT_ERROR, _CRTDBG_FILE_STDERR );
+  _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_CHECK_CRT_DF | _CRTDBG_DELAY_FREE_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+  std::cout << "MSVCRT: Enabling debug features..." << std::endl;
+#endif
+#endif
     // Allocated with global new/delete
     auto a = std::make_shared<A>();
     auto aa = std::make_shared<AA>();
@@ -108,5 +168,11 @@ int main(int argc, const char *argv[])
     auto d1 = std::pmr::make_shared<A>();
     auto d2 = std::pmr::make_shared_in<A>(pr);
     auto d3 = std::pmr::make_shared_in<A>(mr);
+
+#ifdef _MSC_VER
+#ifdef _DEBUG
+    _CrtCheckMemory();
+#endif
+#endif
     return 0;
 }

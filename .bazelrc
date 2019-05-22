@@ -1,6 +1,10 @@
 # sudo apt install gcc-snapshot
-build --action_env=CC=/usr/lib/gcc-snapshot/bin/g++
-build --action_env=LD_LIBRARY_PATH=/usr/lib/gcc-snapshot/lib
-build --cxxopt='-std=c++17'
+
+build:gcc-snapshot --action_env=CC=/usr/lib/gcc-snapshot/bin/g++
+build:gcc-snapshot --action_env=LD_LIBRARY_PATH=/usr/lib/gcc-snapshot/lib
+build:gcc-snapshot --cxxopt=-std=c++17
+
+build:msvc --cxxopt=/std:c++17
+
 test --test_output=all
 
